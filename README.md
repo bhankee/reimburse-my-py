@@ -17,6 +17,6 @@ A client driven program to reimburse employee projects. This has been written an
  
 3.  Execute the script using the `python3` command followed by the script name.
     ```bash
-    python3 reimburse.py
+    python3 app.py
     ```
 
