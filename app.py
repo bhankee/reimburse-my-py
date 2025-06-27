@@ -5,10 +5,10 @@ TODOS:
 - Set up data and rate logic
 - Format date into date object
 - Combine projects that are overlapping / next to eachother
+- Remove dups
 - Do math on days (costs)
 - Account for last days of months
 - Add a day to have current date
-
 '''
 
 
@@ -23,18 +23,16 @@ RATES = {
 def format_date(date_str):
     century = 2000
     split_date = date_str.split('/')
-    # print(date_str)
     month = split_date[0]
     day = split_date[1]
     year = split_date[2]
 
     return date(century + int(year), int(month), int(day))
 
-# referenced some snippets online for help on this one below as it is one of those date util functions used often and wanted to account for leap years
-
 
 def days_in_month(year, month):
-    # account for leap years
+    # referenced some snippets online for help on this one below as it is one of those date util functions used often and wanted to account for leap years
+
     if month == 2:
         is_leap = (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0))
         return 29 if is_leap else 28
@@ -44,13 +42,11 @@ def days_in_month(year, month):
     return 31
 
 
-def next_day(this_date):
+def next_day(curr_date):
+    year = curr_date.year
+    month = curr_date.month
+    day = curr_date.day
 
-    year = this_date.year
-    month = this_date.month
-    day = this_date.day
-
-    # account for last day of month
     current_amt_days = days_in_month(year, month)
 
     if day < current_amt_days:
@@ -70,23 +66,72 @@ def get_date_range(date_start, date_end):
 
 def project_reimbursement(project_set):
 
-    # Combine projects into a list
-
-    combined_projects = []
+    projects_combined = []
     # interate over lists (nested loop) and create new one with all dates in range
     for project in project_set:
-        # print("project", project)
         date_range = get_date_range(
             project["start"], project["end"])
-        # print("dates", dates)
-        # Do not need start and end dates since we can pull from final list
+
         for date in date_range:
-            combined_projects.append({
+            projects_combined.append({
                 "date": date,
                 "city_type": project["city_type"]
             })
 
-    return combined_projects
+    # Create only one instance of a date and prioritize higher cost
+    project_dictionary = {}
+    for data in projects_combined:
+        date_entry = data["date"]
+        city_type = data["city_type"]
+        if date_entry not in project_dictionary:
+            project_dictionary[date_entry] = city_type
+
+    # Lists
+    sorted_dictionary = sorted(project_dictionary)
+    project_groups = []  # for ordering date groups and getting travel days
+    day_data = []  # for prioritizing high cost
+
+    # Checking for gaps while building prject_groups if needed
+    for i, sorted_date in enumerate(sorted_dictionary):
+
+        if i > 0:
+            prev_day = sorted_dictionary[i - 1]
+        else:
+            prev_day = None
+
+        gap_exists = not prev_day or sorted_date != next_day(prev_day)
+
+        if gap_exists:
+            for j, next_date in enumerate(project_groups):
+                is_travel = j == 0 or j == len(
+                    project_groups) - 1  # first and last day travel
+                day_data.append({
+                    "date": next_date,
+                    "type": "travel" if is_travel else "full",
+                    "city_type": project_dictionary[next_date]
+                })
+            project_groups = []  # reset for another potential grouping
+
+        project_groups.append(sorted_date)
+
+    if project_groups:
+        for j, next_date in enumerate(project_groups):
+            is_travel = j == 0 or j == len(project_groups) - 1
+            day_data.append({
+                "date": next_date,
+                "type": "travel" if is_travel else "full",
+                "city_type": project_dictionary[next_date]
+            })
+
+    total_reimbursement = 0
+
+    for info in day_data:
+        city_type = info["city_type"]
+        day_type = info["type"]
+        rate = RATES[city_type][day_type]
+        total_reimbursement += rate
+
+    return total_reimbursement
 
 
 # Project Data
@@ -112,6 +157,5 @@ SETS = [
     ]
 ]
 # ----------------   OUTPUT   ----------------
-
-print("SET 2", project_reimbursement(SETS[1]))
-print("SET 3", project_reimbursement(SETS[2]))
+for i, set in enumerate(SETS):
+    print(f"SET {i+1}: ${project_reimbursement(set)} ")
